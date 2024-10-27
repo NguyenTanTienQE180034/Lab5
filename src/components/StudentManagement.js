@@ -1,123 +1,213 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
 const StudentManagement = () => {
-    const [students, setStudents] = useState([
-        { name: 'Nguyen Van A', code: 'CODE12345', status: 'Active', selected: true },
-        { name: 'Tran Van B', code: 'CODE67890', status: 'In-active', selected: false }
-    ]);
-    const [studentName, setStudentName] = useState('');
-    const [studentCode, setStudentCode] = useState('');
+    const [students, setStudents] = useState([]);
     const [stillActive, setStillActive] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editStudentId, setEditStudentId] = useState(null);
+    const [error, setError] = useState(null);
+    const [loading, setLoading] = useState(false);
 
-    const addStudent = () => {
-        if (!studentName || !studentCode) return; 
-        const newStudent = {
-            name: studentName,
-            code: studentCode,
-            status: stillActive ? 'Active' : 'In-active',
-            selected: true
-        };
-       
-        setStudents([newStudent, ...students]);
-        setStudentName('');
-        setStudentCode('');
-        setStillActive(false);
+    const navigate = useNavigate();
+
+    const API_BASE_URL = 'https://student-api-nestjs.onrender.com/students';
+
+    useEffect(() => {
+        fetchStudents();
+    }, []);
+
+    const fetchStudents = async () => {
+        setLoading(true);
+        try {
+            const response = await fetch(API_BASE_URL);
+            const result = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(result.message || 'Failed to fetch students');
+            }
+            
+            if (result.success && Array.isArray(result.data)) {
+                setStudents(result.data);
+            } else {
+                throw new Error('Invalid data format received');
+            }
+        } catch (error) {
+            setError(error.message);
+            console.error('Error fetching students:', error);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const clearAllStudents = () => {
-        setStudents([]); 
+    const addStudent = async (newStudent) => {
+        setLoading(true);
+        try {
+            const response = await fetch(API_BASE_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(newStudent)
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to add student');
+            }
+            
+            const createdStudent = await response.json();
+            setStudents(prev => [createdStudent, ...prev]);
+        } catch (error) {
+            setError(error.message);
+            console.error('Error adding student:', error);
+        } finally {
+            setLoading(false);
+        }
     };
+    const deleteStudent = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this student?')) {
+            return;
+        }
 
-    const deleteStudent = (index) => {
-        const newStudents = students.filter((_, i) => i !== index);
-        setStudents(newStudents);
+        setLoading(true);
+        try {
+            const response = await fetch(`${API_BASE_URL}/${id}`, {
+                method: 'DELETE'
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to delete student');
+            }
+            
+            setStudents(prev => prev.filter(student => student._id !== id));
+        } catch (error) {
+            setError(error.message);
+            console.error('Error deleting student:', error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const toggleSelect = (index) => {
-        const newStudents = [...students];
-        newStudents[index].selected = !newStudents[index].selected;
-        setStudents(newStudents);
+        setStudents(prev => 
+            prev.map((student, idx) => 
+                idx === index ? { ...student, selected: !student.selected } : student
+            )
+        );
     };
 
-    const toggleStatus = (index) => {
-        const newStudents = [...students];
-        newStudents[index].status = newStudents[index].status === 'Active' ? 'In-active' : 'Active';
-        setStudents(newStudents);
-    };
+    const filteredStudents = stillActive 
+        ? students.filter(student => student.isActive) 
+        : students;
 
+    if (loading) {
+        return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
+    }
     const totalSelected = students.filter(student => student.selected).length;
-
-    const filteredStudents = stillActive ? students.filter(student => student.status === 'Active') : students;
-
     return (
         <div className="max-w-4xl mx-auto bg-white p-8">
-            <h1 className="text-2xl font-semibold mb-4">Total Selected Student: {totalSelected}</h1>
-            <div className="flex items-center mb-4">
-                <input
-                    type="text"
-                    placeholder="Student Name"
-                    value={studentName}
-                    onChange={(e) => setStudentName(e.target.value)}
-                    className="border border-gray-300 rounded px-4 py-2 mr-2 w-1/3"
-                />
-                <input
-                    type="text"
-                    placeholder="Student Code"
-                    value={studentCode}
-                    onChange={(e) => setStudentCode(e.target.value)}
-                    className="border border-gray-300 rounded px-4 py-2 mr-2 w-1/3"
-                />
-                <button onClick={addStudent} className="bg-blue-500 text-white px-4 py-2 rounded">Add</button>
-                <button onClick={clearAllStudents} className="bg-red-500 text-white px-4 py-2 rounded ml-2">Clear</button>
-            </div>
-            <div className="mb-4">
+             <h1 className="text-2xl font-semibold mb-4">Total Selected Student: {totalSelected}</h1>
+            <h1 className="text-2xl font-semibold mb-4">Student Management</h1>
+            
+            {error && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 relative">
+                    <span className="block sm:inline">{error}</span>
+                    <button
+                        className="absolute top-0 right-0 px-4 py-3"
+                        onClick={() => setError(null)}
+                    >
+                        <span className="text-2xl">&times;</span>
+                    </button>
+                </div>
+            )}
+            
+            <div className="mb-4 flex justify-between items-center">
                 <label className="inline-flex items-center">
                     <input
                         type="checkbox"
                         checked={stillActive}
-                        onChange={() => setStillActive(!stillActive)}
-                        className="form-checkbox"
+                        onChange={() => setStillActive(prev => !prev)}
+                        className="form-checkbox h-5 w-5 text-blue-600"
                     />
                     <span className="ml-2">Show Only Active Students</span>
                 </label>
+                
+                <button 
+                    onClick={() => navigate('/add-student')}
+                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
+                >
+                    Add New Student
+                </button>
             </div>
-            <table className="min-w-full bg-white border border-gray-300">
-                <thead>
-                    <tr className="bg-gray-200">
-                        <th className="py-2 border border-gray-300 text-center">Select</th>
-                        <th className="py-2 border border-gray-300 text-center">Student Name</th>
-                        <th className="py-2 border border-gray-300 text-center">Student Code</th>
-                        <th className="py-2 border border-gray-300 text-center">Status</th>
-                        <th className="py-2 border border-gray-300 text-center">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {filteredStudents.map((student, index) => (
-                        <tr key={index} className="hover:bg-gray-100">
-                            <td className="py-2 border border-gray-300 text-center">
-                                <input type="checkbox"
-                                    checked={student.selected}
-                                    onChange={() => toggleSelect(index)}
-                                    className="form-checkbox"
-                                />
-                            </td>
-                            <td className="py-2 border border-gray-300 text-center">{student.name}</td>
-                            <td className="py-2 border border-gray-300 text-center">{student.code}</td>
-                            <td className="py-2 border border-gray-300 text-center">
-                                <span
-                                    className={`px-2 py-1 rounded ${student.status === 'Active' ? 'bg-blue-200 text-blue-800' : 'bg-red-200 text-red-800'}`}
-                                    onClick={() => toggleStatus(index)}
-                                >
-                                    {student.status}
-                                </span>
-                            </td>
-                            <td className="py-2 border border-gray-300 text-center">
-                                <button onClick={() => deleteStudent(index)} className="bg-red-500 text-white px-4 py-2 rounded">Delete</button>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+
+            {filteredStudents.length === 0 ? (
+                <p className="text-center py-4">No students found.</p>
+            ) : (
+                <div className="overflow-x-auto">
+                    <table className="min-w-full bg-white border border-gray-300">
+                        <thead>
+                            <tr className="bg-gray-100">
+                                <th className="py-2 px-4 border border-gray-300">Select</th>
+                                <th className="py-2 px-4 border border-gray-300">Name</th>
+                                <th className="py-2 px-4 border border-gray-300">Code</th>
+                                <th className="py-2 px-4 border border-gray-300">Status</th>
+                                <th className="py-2 px-4 border border-gray-300">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredStudents.map((student, index) => (
+                                <tr key={student._id} className="hover:bg-gray-50">
+                                    <td className="py-2 px-4 border border-gray-300 text-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={student.selected || false}
+                                            onChange={() => toggleSelect(index)}
+                                            className="form-checkbox h-5 w-5 text-blue-600"
+                                        />
+                                    </td>
+                                    <td className="py-2 px-4 border border-gray-300">
+                                        <button
+                                            onClick={() => navigate(`/students/${student._id}`)}
+                                            className="text-blue-600 hover:underline"
+                                        >
+                                            {student.name}
+                                        </button>
+                                    </td>
+                                    <td className="py-2 px-4 border border-gray-300 text-center">
+                                        {student.studentCode}
+                                    </td>
+                                    <td className="py-2 px-4 border border-gray-300 text-center">
+                                        <button
+                                        
+                                            className={`px-3 py-1 rounded-full text-sm font-medium
+                                                ${student.isActive 
+                                                    ? 'bg-green-100 text-green-800 hover:bg-green-200' 
+                                                    : 'bg-red-100 text-red-800 hover:bg-red-200'
+                                                } transition-colors`}
+                                        >
+                                            {student.isActive ? 'Active' : ' Graduated'}
+                                        </button>
+                                    </td>
+                                    <td className="py-2 px-4 border border-gray-300 text-center">
+                                        <button 
+                                            onClick={() => navigate(`/edit-student/${student._id}`)}
+                                            className="bg-yellow-500 text-white px-3 py-1 rounded mr-2 hover:bg-yellow-600 transition-colors"
+                                        >
+                                            Edit
+                                        </button>
+                                        <button 
+                                            onClick={() => deleteStudent(student._id)}
+                                            className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition-colors"
+                                        >
+                                            Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 };
