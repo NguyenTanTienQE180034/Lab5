@@ -39,31 +39,6 @@ const StudentManagement = () => {
             setLoading(false);
         }
     };
-
-    const addStudent = async (newStudent) => {
-        setLoading(true);
-        try {
-            const response = await fetch(API_BASE_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(newStudent)
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to add student');
-            }
-            
-            const createdStudent = await response.json();
-            setStudents(prev => [createdStudent, ...prev]);
-        } catch (error) {
-            setError(error.message);
-            console.error('Error adding student:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
     const deleteStudent = async (id) => {
         if (!window.confirm('Are you sure you want to delete this student?')) {
             return;
